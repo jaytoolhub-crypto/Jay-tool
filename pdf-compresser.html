@@ -1,59 +1,59 @@
-  
-  <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PDF Compressor</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Client-side PDF Compressor</title>
   <style>
     body {
-      margin: 0;
       font-family: Arial, sans-serif;
-      background-color: #ffffff;
+      background: #f9f9f9;
       color: #333;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
     }
-
     .container {
-      max-width: 500px;
-      margin: auto;
-      padding: 2rem;
+      max-width: 600px;
+      width: 100%;
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
       text-align: center;
     }
-
     h1 {
-      color: #007BFF;
+      color: #007bff;
     }
-
     input[type="file"] {
-      display: block;
-      margin: 1rem auto;
+      margin: 1rem 0;
     }
-
-    .button {
-      background-color: #007BFF;
-      color: white;
+    .slider-container {
+      display: none;
+      margin: 1rem 0;
+    }
+    button {
+      background: #007bff;
+      color: #fff;
       border: none;
-      padding: 0.75rem 1.5rem;
-      border-radius: 8px;
-      font-size: 1rem;
+      padding: 10px 20px;
+      border-radius: 6px;
       cursor: pointer;
-      margin-top: 1rem;
+      margin-top: 10px;
     }
-
-    .button:disabled {
-      background-color: #a6c8ff;
+    button:disabled {
+      background: #a6c8ff;
       cursor: not-allowed;
     }
-
+    .size-info {
+      margin-top: 1rem;
+      font-size: 14px;
+      color: #555;
+    }
     #downloadLink {
       display: none;
       margin-top: 1.5rem;
-    }
-
-    @media (max-width: 600px) {
-      .container {
-        padding: 1rem;
-      }
     }
   </style>
 </head>
@@ -61,48 +61,91 @@
   <div class="container">
     <h1>PDF Compressor</h1>
     <input type="file" id="pdfInput" accept="application/pdf" />
-    <button class="button" id="compressBtn" disabled>Compress PDF</button>
+    
+    <div class="size-info" id="sizeInfo"></div>
+
+    <div class="slider-container" id="sliderContainer">
+      <label for="compressLevel">Compression Quality: </label>
+      <input type="range" id="compressLevel" min="10" max="100" value="70" />
+      <span id="levelValue">70%</span>
+    </div>
+
+    <button id="compressBtn" disabled>Compress PDF</button>
     <a id="downloadLink" class="button" download="compressed.pdf">Download Compressed PDF</a>
   </div>
 
-  <script type="module">
-    import { PDFDocument } from 'https://cdn.skypack.dev/pdf-lib';
+  <!-- pdf.js library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+  <!-- jspdf library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
+  <script>
     const pdfInput = document.getElementById('pdfInput');
     const compressBtn = document.getElementById('compressBtn');
     const downloadLink = document.getElementById('downloadLink');
-    let originalPDF;
+    const sizeInfo = document.getElementById('sizeInfo');
+    const sliderContainer = document.getElementById('sliderContainer');
+    const compressLevel = document.getElementById('compressLevel');
+    const levelValue = document.getElementById('levelValue');
+
+    let pdfFile, originalSize;
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes + " B";
+      let kb = bytes / 1024;
+      if (kb < 1024) return kb.toFixed(2) + " KB";
+      return (kb / 1024).toFixed(2) + " MB";
+    }
 
     pdfInput.addEventListener('change', (event) => {
       const file = event.target.files[0];
       if (file && file.type === 'application/pdf') {
-        const reader = new FileReader();
-        reader.onload = function (e) {
-          originalPDF = e.target.result;
-          compressBtn.disabled = false;
-        };
-        reader.readAsArrayBuffer(file);
+        pdfFile = file;
+        originalSize = file.size;
+        sizeInfo.textContent = `Original Size: ${formatBytes(originalSize)}`;
+        sliderContainer.style.display = "block";
+        compressBtn.disabled = false;
       } else {
         compressBtn.disabled = true;
+        sliderContainer.style.display = "none";
       }
     });
 
+    compressLevel.addEventListener('input', () => {
+      levelValue.textContent = compressLevel.value + "%";
+    });
+
     compressBtn.addEventListener('click', async () => {
-      const pdfDoc = await PDFDocument.load(originalPDF);
+      if (!pdfFile) return;
 
-      // Basic compression by copying pages to a new PDF
-      const compressedPdf = await PDFDocument.create();
-      const pages = await compressedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
-      pages.forEach((page) => compressedPdf.addPage(page));
+      const arrayBuffer = await pdfFile.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-      const compressedBytes = await compressedPdf.save();
-      const blob = new Blob([compressedBytes], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
+      const { jsPDF } = window.jspdf;
+      const pdfDoc = new jsPDF();
+
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 1 });
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+
+        const imgData = canvas.toDataURL("image/jpeg", compressLevel.value / 100);
+        if (pageNum > 1) pdfDoc.addPage();
+        pdfDoc.addImage(imgData, "JPEG", 0, 0, pdfDoc.internal.pageSize.getWidth(), pdfDoc.internal.pageSize.getHeight());
+      }
+
+      const compressedBlob = pdfDoc.output("blob");
+      sizeInfo.textContent = `Original Size: ${formatBytes(originalSize)} | Compressed Size: ${formatBytes(compressedBlob.size)}`;
+
+      const url = URL.createObjectURL(compressedBlob);
       downloadLink.href = url;
       downloadLink.style.display = 'inline-block';
     });
   </script>
 </body>
 </html>
-
-  
