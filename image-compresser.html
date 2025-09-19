@@ -1,6 +1,4 @@
-  
-    
-  <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -27,7 +25,7 @@
       border-radius: 12px;
       box-shadow: 0 0 10px rgba(0, 123, 255, 0.1);
       padding: 20px;
-      max-width: 500px;
+      max-width: 700px;
       width: 100%;
       text-align: center;
     }
@@ -38,8 +36,19 @@
 
     img {
       max-width: 100%;
-      margin-top: 15px;
       border-radius: 10px;
+    }
+
+    .preview-box {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    .preview-box div {
+      flex: 1 1 45%;
     }
 
     button {
@@ -56,9 +65,24 @@
       background-color: #0056b3;
     }
 
+    .slider-container {
+      margin-top: 15px;
+    }
+
+    .slider-container label {
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .info {
+      font-size: 14px;
+      margin-top: 5px;
+      color: #444;
+    }
+
     @media (max-width: 600px) {
-      .container {
-        padding: 15px;
+      .preview-box {
+        flex-direction: column;
       }
     }
   </style>
@@ -67,49 +91,102 @@
   <h1>Image Compressor</h1>
   <div class="container">
     <input type="file" id="upload" accept="image/*" />
-    <div id="previewContainer">
-      <img id="preview" src="" alt="Preview" style="display:none;" />
+
+    <div class="slider-container" style="display:none;" id="sliderContainer">
+      <label for="quality">Compression Quality: <span id="qualityValue">70</span>%</label>
+      <input type="range" id="quality" min="10" max="100" value="70" />
     </div>
-    <button id="compressBtn" style="display:none;">Compress & Download</button>
+
+    <div class="preview-box" id="previewContainer" style="display:none;">
+      <div>
+        <h3>Before</h3>
+        <img id="previewOriginal" src="" alt="Original" />
+        <div class="info">Size: <span id="origSize">0 KB</span></div>
+      </div>
+      <div>
+        <h3>After</h3>
+        <img id="previewCompressed" src="" alt="Compressed" />
+        <div class="info">Size: <span id="compSize">0 KB</span></div>
+      </div>
+    </div>
+
+    <button id="compressBtn" style="display:none;">Compress</button>
+    <a id="downloadBtn" style="display:none;" download="compressed-image.jpg">
+      <button>Download Compressed</button>
+    </a>
   </div>
 
   <script>
     const upload = document.getElementById('upload');
-    const preview = document.getElementById('preview');
+    const previewOriginal = document.getElementById('previewOriginal');
+    const previewCompressed = document.getElementById('previewCompressed');
     const compressBtn = document.getElementById('compressBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const sliderContainer = document.getElementById('sliderContainer');
+    const qualitySlider = document.getElementById('quality');
+    const qualityValue = document.getElementById('qualityValue');
+    const origSizeText = document.getElementById('origSize');
+    const compSizeText = document.getElementById('compSize');
 
+    let originalImg = null;
+    let originalFile = null;
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes + " B";
+      let kb = bytes / 1024;
+      if (kb < 1024) return kb.toFixed(2) + " KB";
+      return (kb / 1024).toFixed(2) + " MB";
+    }
+
+    // Show selected image
     upload.addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (file) {
+        originalFile = file;
+        origSizeText.textContent = formatBytes(file.size);
+
         const reader = new FileReader();
         reader.onload = function (event) {
-          preview.src = event.target.result;
-          preview.style.display = 'block';
+          previewOriginal.src = event.target.result;
+          previewCompressed.src = ""; 
+          compSizeText.textContent = "0 KB";
+          document.getElementById('previewContainer').style.display = 'flex';
+          sliderContainer.style.display = 'block';
           compressBtn.style.display = 'inline-block';
+          downloadBtn.style.display = 'none';
+          originalImg = new Image();
+          originalImg.src = event.target.result;
         };
         reader.readAsDataURL(file);
       }
     });
 
+    // Update quality label live
+    qualitySlider.addEventListener('input', () => {
+      qualityValue.textContent = qualitySlider.value;
+    });
+
+    // Compress function
     compressBtn.addEventListener('click', () => {
+      if (!originalImg) return;
+
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      const img = new Image();
-      img.src = preview.src;
+      canvas.width = originalImg.width;
+      canvas.height = originalImg.height;
+      ctx.drawImage(originalImg, 0, 0, canvas.width, canvas.height);
 
-      img.onload = () => {
-        const scale = 0.5; // Compress to 50% size
-        canvas.width = img.width * scale;
-        canvas.height = img.height * scale;
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const quality = qualitySlider.value / 100;
 
-        canvas.toBlob((blob) => {
-          const link = document.createElement('a');
-          link.href = URL.createObjectURL(blob);
-          link.download = 'compressed-image.jpg';
-          link.click();
-        }, 'image/jpeg', 0.7); // JPEG format with 70% quality
-      };
+      canvas.toBlob((blob) => {
+        const compressedUrl = URL.createObjectURL(blob);
+        previewCompressed.src = compressedUrl;
+        compSizeText.textContent = formatBytes(blob.size);
+
+        // update download button
+        downloadBtn.href = compressedUrl;
+        downloadBtn.style.display = 'inline-block';
+      }, 'image/jpeg', quality);
     });
   </script>
 </body>
