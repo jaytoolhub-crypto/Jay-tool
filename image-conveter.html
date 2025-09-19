@@ -1,10 +1,10 @@
-  
-    <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Image Converter Tool</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
     body {
       background-color: #ffffff;
@@ -70,9 +70,10 @@
     <input type="file" id="imageInput" accept="image/*" />
     <select id="formatSelect">
       <option value="png">PNG</option>
-      <option value="jpeg">JPG</option>
-      <option value="gif">GIF</option>
+      <option value="jpg">JPG</option>
+      <option value="jpeg">JPEG</option>
       <option value="webp">WebP</option>
+      <option value="pdf">PDF</option>
     </select>
     <button onclick="convertImage()">Convert Image</button>
 
@@ -85,12 +86,12 @@
     document.getElementById('imageInput').addEventListener('change', function(e) {
       originalFile = e.target.files[0];
       const previewContainer = document.getElementById('previewContainer');
-      previewContainer.innerHTML = '<p>Original Preview:</p>' + '<img src="' + URL.createObjectURL(originalFile) + '" alt="Original Image">';
+      previewContainer.innerHTML = '<p>Original Preview:</p>' +
+        '<img src="' + URL.createObjectURL(originalFile) + '" alt="Original Image">';
     });
 
     function convertImage() {
       if (!originalFile) return alert("Please upload an image first.");
-
       const format = document.getElementById("formatSelect").value;
       const reader = new FileReader();
       const canvas = document.createElement("canvas");
@@ -99,21 +100,33 @@
 
       reader.onload = function(event) {
         img.onload = function() {
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
+          if (format === "pdf") {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF();
+            const imgWidth = 180;
+            const imgHeight = (img.height * imgWidth) / img.width;
+            pdf.addImage(img, "JPEG", 15, 20, imgWidth, imgHeight);
+            pdf.save("converted-image.pdf");
 
-          canvas.toBlob(function(blob) {
-            const convertedUrl = URL.createObjectURL(blob);
-            const previewContainer = document.getElementById("previewContainer");
-            previewContainer.innerHTML += '<p>Converted Preview:</p>' +
-              '<img src="' + convertedUrl + '" alt="Converted Image">' +
-              '<a class="download-btn" href="' + convertedUrl + '" download="converted-image.' + format + '">Download Converted Image</a>';
-          }, 'image/' + format);
+            document.getElementById("previewContainer").innerHTML +=
+              "<p>Converted to PDF ✅ (File downloaded)</p>";
+          } else {
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+
+            canvas.toBlob(function(blob) {
+              const convertedUrl = URL.createObjectURL(blob);
+              const previewContainer = document.getElementById("previewContainer");
+              previewContainer.innerHTML +=
+                '<p>Converted Preview:</p>' +
+                '<img src="' + convertedUrl + '" alt="Converted Image">' +
+                '<a class="download-btn" href="' + convertedUrl + '" download="converted-image.' + format + '">Download Converted Image</a>';
+            }, 'image/' + format);
+          }
         };
         img.src = event.target.result;
       };
-
       reader.readAsDataURL(originalFile);
     }
   </script>
